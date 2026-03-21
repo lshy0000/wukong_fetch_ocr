@@ -96,8 +96,18 @@ def _dispatch(cmd: dict[str, Any]) -> dict[str, Any]:
         ok = low.mouse_hwheel(int(cmd.get("delta") or 0))
         return {"ok": bool(ok)}
     if name == "text":
-        ok = low.text_unicode(str(cmd.get("text") or ""))
-        return {"ok": bool(ok)}
+        body = str(cmd.get("text") or "")
+        ok = low.text_unicode(body)
+        if ok:
+            return {"ok": True}
+        return {
+            "ok": False,
+            "error": "text_sendinput_failed",
+            "hint": (
+                "SendInput(KEYEVENTF_UNICODE) 未全部成功，常见于中文/WebView；"
+                "若剪贴板已有文本可改用 key_combo Ctrl+V 或 run_test_01 的 clipboard 流程。"
+            ),
+        }
     if name == "vk_tap":
         ok = low.vk_tap(int(cmd["vk"]))
         return {"ok": bool(ok)}

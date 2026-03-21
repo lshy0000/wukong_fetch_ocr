@@ -34,6 +34,8 @@ sys.path.insert(0, str(ROOT / "src"))
 from wukong_invite.input_assistant_flow import (
     FLOW_ANCHOR_Y_FRAC,
     FLOW_DOWN_FRAC,
+    TEXT_DELIVERY_CLIPBOARD_PASTE,
+    TEXT_DELIVERY_UNICODE,
     build_flow_commands,
     resolve_default_assistant_secret,
     run_input_assistant_flow,
@@ -68,6 +70,11 @@ def main() -> int:
         default=0.1,
         metavar="SEC",
         help="flow 中每次 mouse_click 执行完后再等待的秒数（默认 0.1 = 100ms）",
+    )
+    ap.add_argument(
+        "--flow-clipboard",
+        action="store_true",
+        help="flow 第 3 步改为 Ctrl+V（须事先把文本放进剪贴板；避免 SendInput 中文失败）",
     )
     ap.add_argument(
         "--raw",
@@ -161,12 +168,14 @@ def main() -> int:
     try:
         if pending_flow_text is not None:
             text_to_type = pending_flow_text
-            _, meta = build_flow_commands(text_to_type)
+            td = TEXT_DELIVERY_CLIPBOARD_PASTE if args.flow_clipboard else TEXT_DELIVERY_UNICODE
+            _, meta = build_flow_commands(text_to_type, text_delivery=td)
             cx, cy = meta["cx"], meta["cy"]
             vh, delta_y, y_down = meta["vh"], meta["delta_y"], meta["y_down"]
+            step3 = "Ctrl+V 粘贴剪贴板" if td == TEXT_DELIVERY_CLIPBOARD_PASTE else f"输入 {text_to_type!r}"
             print(
                 f"flow: 锚点=({cx},{cy}) 竖直{vh}px×{FLOW_ANCHOR_Y_FRAC:.2f} → 左键 → "
-                f"输入 {text_to_type!r} → 下移{delta_y}px (屏高×{FLOW_DOWN_FRAC}) → ({cx},{y_down}) 左键",
+                f"{step3} → 下移{delta_y}px (屏高×{FLOW_DOWN_FRAC}) → ({cx},{y_down}) 左键",
                 file=sys.stderr,
             )
             try:
@@ -179,6 +188,7 @@ def main() -> int:
                     use_default_secret=False,
                     move_delay=float(args.move_delay),
                     click_delay=float(args.click_delay),
+                    text_delivery=td,
                 )
             except RuntimeError as e:
                 print("flow 失败:", e, file=sys.stderr)

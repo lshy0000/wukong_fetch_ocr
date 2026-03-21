@@ -6,6 +6,7 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+.idea/
 
 # local probes / downloads
 wukong_index.js

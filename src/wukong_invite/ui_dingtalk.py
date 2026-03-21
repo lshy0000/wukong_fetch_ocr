@@ -23,6 +23,17 @@ DEFAULT_PROCESS_PATH_SUBSTRINGS: tuple[str, ...] = ("DingTalkReal.exe",)
 # 相对窗口几何中心：点击目标纵向下移像素（屏幕 Y 向下为正）。可用 WUKONG_CENTER_CLICK_OFFSET_Y 或参数覆盖。
 DEFAULT_CENTER_CLICK_OFFSET_Y = 108
 
+
+def _env_screen_y_offset() -> int:
+    """本机若整体「点高了」，设 WUKONG_SCREEN_Y_OFFSET 为正数（像素）把绝对 Y 下移。"""
+    raw = (os.environ.get("WUKONG_SCREEN_Y_OFFSET") or "").strip()
+    if not raw:
+        return 0
+    try:
+        return int(raw)
+    except ValueError:
+        return 0
+
 def activate_window_title_match(title_pattern: str, *, timeout: float = 8.0) -> object:
     """
     通过窗口标题正则连接前台应用（默认 UIA 后端）。
@@ -727,7 +738,7 @@ def _window_click_point_screen(
     """几何中心 + 纵向偏移（默认下移 ``DEFAULT_CENTER_CLICK_OFFSET_Y``）。"""
     cx, cy = _window_center_screen_coords(wrapper)
     oy = _effective_center_click_offset_y(offset_y)
-    return cx, cy + oy
+    return cx, cy + oy + _env_screen_y_offset()
 
 
 def _clip_point_to_virtual_screen(x: int, y: int) -> tuple[int, int]:
