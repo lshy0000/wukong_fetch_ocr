@@ -1,0 +1,10 @@
+# 飞桨 PaddleOCR（主路径 OCR）
+# 请先按 CPU/GPU 安装 paddlepaddle，再装 paddleocr。官方说明：
+# https://www.paddlepaddle.org.cn/install/quick
+# https://paddlepaddle.github.io/PaddleOCR/latest/quick_start.html
+#
+# CPU 示例（版本以官网为准）：
+#   python -m pip install paddlepaddle==3.2.0 -i https://www.paddlepaddle.org.cn/packages/stable/cpu/
+#
+-r requirements.txt
+paddleocr>=3.0.0

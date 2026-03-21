@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wukong-invite"
+version = "0.1.0"
+description = "Poll DingTalk Wukong invite image API, PaddleOCR + clipboard + Windows UI helpers"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "httpx>=0.27.0",
+  "Pillow>=10.0.0",
+  "numpy>=1.26.0",
+  "opencv-python-headless>=4.8.0",
+  "pyperclip>=1.9.0",
+  "pywinauto>=0.6.8",
+]
+
+[project.optional-dependencies]
+paddle = ["paddleocr>=3.0.0"]
+tesseract = ["pytesseract>=0.3.10"]
+dev = ["pytest>=8.0.0"]
+# 将 scripts/run_test_01_fetch_ocr.py 打成 Windows exe（见 packaging/ 与 scripts/build_wukong_fetch_ocr_exe.ps1）
+bundle = ["pyinstaller>=6.0"]
+
+[project.scripts]
+wukong-invite = "wukong_invite.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

@@ -1,0 +1,23 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+dist/
+build/
+
+# local probes / downloads
+wukong_index.js
+wukong_office.js.gz
+dingtalk_home.html
+dingtalk_wukong.html
+*.png
+!fixtures/wukong_invite_sample.png
+!fixtures/last_raw.png
+!fixtures/last_inv_full.png
+!fixtures/last_inv_crop.png
+.wukong_test_state.json
+
+# 本地 OCR 调试图（run_test_01 --save-debug）
+debug/

@@ -1,0 +1,4 @@
+# 可选：不用飞桨时，用 Tesseract 作 OCR 降级
+# Windows 需另装 Tesseract 并配置 PATH
+-r requirements.txt
+pytesseract>=0.3.10
