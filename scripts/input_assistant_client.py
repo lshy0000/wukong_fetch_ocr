@@ -14,12 +14,11 @@
 其它脚本可调用::
 
   from wukong_invite.input_assistant_flow import run_input_assistant_flow
-  run_input_assistant_flow("helloworld", secret="...")  # 或依赖默认密钥文件
+  run_input_assistant_flow("helloworld", secret="...")  # 或依赖内置默认密钥常量
 
 flow 起点：水平居中、竖直=虚拟屏高度 60%；下移 = 屏高×0.074。
 
-密钥优先级：``--secret`` > ``--secret-file`` > 环境变量与密钥文件 >
-``%LOCALAPPDATA%\\wukong_input_assistant\\secret.txt`` > 与仓库/安装脚本一致的**内置默认密钥**（本机回环）。
+密钥：默认与 ``input_assistant_server`` 相同，为代码内置常量；``--secret`` 可覆盖（须与服务端一致）。
 """
 from __future__ import annotations
 
@@ -48,12 +47,7 @@ def main() -> int:
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=47821)
     ap.add_argument("--timeout", type=float, default=5.0)
-    ap.add_argument("--secret", default="", help="明文密钥（优先）")
-    ap.add_argument(
-        "--secret-file",
-        default="",
-        help="密钥文件首行；省略时可设环境变量 INPUT_ASSISTANT_SECRET_FILE",
-    )
+    ap.add_argument("--secret", default="", help="明文密钥（覆盖内置常量，须与服务端一致）")
     ap.add_argument(
         "-t",
         "--flow-text",
@@ -86,18 +80,6 @@ def main() -> int:
     # 不用 REMAINDER：否则「子命令在前、-t 在后」时 -t 会掉进 tail 当普通字串
     args, rest = ap.parse_known_args()
     sec = (str(args.secret or "").strip()) or None
-    if not sec:
-        sf = (str(args.secret_file or "").strip()) or (
-            os.environ.get("INPUT_ASSISTANT_SECRET_FILE") or ""
-        ).strip()
-        if sf:
-            try:
-                p = Path(sf).expanduser()
-                if p.is_file():
-                    sec = p.read_text(encoding="utf-8").splitlines()[0].strip() or None
-            except OSError as e:
-                print("无法读取 --secret-file:", e, file=sys.stderr)
-                return 2
     if not sec:
         sec = resolve_default_assistant_secret()
 
@@ -210,6 +192,14 @@ def main() -> int:
         print("请求失败:", e, file=sys.stderr)
         return 1
     print(json.dumps(out, ensure_ascii=False, indent=2))
+    if not out.get("ok"):
+        err = out.get("error")
+        if err == "unauthorized":
+            print(
+                "提示: unauthorized = 客户端与服务端密钥不一致。"
+                "请确认两端均为同一版本构建；若任一侧使用了 --secret，另一侧须相同。",
+                file=sys.stderr,
+            )
     return 0 if out.get("ok") else 3
 
 

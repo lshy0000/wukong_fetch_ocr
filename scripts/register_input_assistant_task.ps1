@@ -5,13 +5,12 @@
 
 .DESCRIPTION
   - Requires admin once (script re-launches with UAC).
-  - Secret file: %LOCALAPPDATA%\wukong_input_assistant\secret.txt (created if missing).
-  - New installs use the same default secret as wukong_fetch_ocr / input_assistant_client (no env vars needed).
+  - Assistant uses the same built-in secret constant as wukong_fetch_ocr (no secret file or env vars).
   - Uses pythonw.exe (no console). Not a Session 0 Windows service.
   - If this .ps1 sits next to input_assistant_server.py (zip bundle), that folder is used as working directory.
 
 .PARAMETER Unregister
-  Remove the scheduled task (admin).
+  Remove the scheduled task (admin). 请写 ``-Unregister``（单横线）；在 Windows PowerShell 5.1 里 ``--Unregister`` 往往无效。
 
 .PARAMETER ListenHost
   Default 127.0.0.1
@@ -53,19 +52,18 @@ if (-not (Test-IsAdmin)) {
     if ($Port -ne "47821") { $argList += "-Port"; $argList += $Port }
     if ($TaskName -ne "WukongInputAssistant") { $argList += "-TaskName"; $argList += $TaskName }
     if ($NoStart) { $argList += "-NoStart" }
-    Start-Process -FilePath $exe -Verb RunAs -ArgumentList $argList | Out-Null
-    Write-Host "UAC prompt opened. Approve to continue as Administrator."
+    Start-Process -FilePath $exe -Verb RunAs -ArgumentList $argList -Wait | Out-Null
+    Write-Host "UAC prompt opened. If you approved, the elevated window has finished; scroll up in THAT window for errors." -ForegroundColor Yellow
+    Write-Host "For uninstall use: .\register_input_assistant_task.ps1 -Unregister (not --Unregister on PS 5.1)" -ForegroundColor DarkGray
     exit 0
 }
 
 if ($Unregister) {
     Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
     Write-Host "Removed scheduled task: $TaskName"
+    if ($Host.Name -eq "ConsoleHost") { $null = Read-Host "Press Enter to close" }
     exit 0
 }
-
-# Must match Python wukong_invite.input_assistant_defaults.BUNDLED_INPUT_ASSISTANT_SECRET
-$BundledAssistantSecret = "wukong-invite-local-v1-7f3c9a2e4b8d1f6e0c5a9b3d7e1f4a8c2e6b0d4f8a1c5e9b3d7f0a4c8e2b6"
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $serverNextToScript = Join-Path $ScriptDir "input_assistant_server.py"
@@ -105,18 +103,8 @@ if (-not (Test-Path -LiteralPath $pywExe)) {
     $pywExe = $pyExe
 }
 
-$dataDir = Join-Path $env:LOCALAPPDATA "wukong_input_assistant"
-New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
-$secretFile = Join-Path $dataDir "secret.txt"
-if (-not (Test-Path -LiteralPath $secretFile)) {
-    [System.IO.File]::WriteAllText($secretFile, $BundledAssistantSecret, [System.Text.UTF8Encoding]::new($false))
-    Write-Host "Created secret file (bundled default): $secretFile"
-}
-else {
-    Write-Host "Using existing secret file: $secretFile"
-}
-
-$argLine = "`"$serverScript`" --host $ListenHost --port $Port --secret-file `"$secretFile`""
+# 必须直接 Execute pythonw + Argument；用 cmd.exe /c 做重定向时，任务计划程序常把参数拆坏，端口起不来。
+$argLine = "`"$serverScript`" --host $ListenHost --port $Port"
 $action = New-ScheduledTaskAction -Execute $pywExe -Argument $argLine -WorkingDirectory $WorkingDir
 
 $userId = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
@@ -136,14 +124,43 @@ Write-Host ""
 Write-Host "Registered task: $TaskName"
 Write-Host "  Trigger: At logon for $userId"
 Write-Host "  Run: Interactive + Highest"
-Write-Host "  Listen: ${ListenHost}:${Port}"
+Write-Host ('  Listen: ' + $ListenHost + ':' + $Port)
+Write-Host ""
+Write-Host "If the port stays closed: open cmd in this folder, run: python input_assistant_server.py (see errors in console)."
 Write-Host ""
 Write-Host "Optional: test ping from dev machine (Python + repo src on path):"
-Write-Host "  cd <repo_root>"
+Write-Host "  cd path-to-your-repo-root    (folder that contains src/)"
 Write-Host "  python scripts\input_assistant_client.py ping"
 Write-Host ""
 
 if (-not $NoStart) {
     Start-ScheduledTask -TaskName $TaskName
-    Write-Host "Started task (if already running, no second instance)."
+    Write-Host "Started scheduled task."
+    $opened = $false
+    foreach ($i in 1..6) {
+        Start-Sleep -Seconds 2
+        try {
+            $client = New-Object System.Net.Sockets.TcpClient
+            $client.ReceiveTimeout = 2000
+            $client.SendTimeout = 2000
+            $client.Connect($ListenHost, [int]$Port)
+            $client.Close()
+            $opened = $true
+            break
+        }
+        catch {
+            # retry until max attempts
+        }
+    }
+    if ($opened) {
+        Write-Host ("OK: " + $ListenHost + ":" + $Port + " port open (assistant running).") -ForegroundColor Green
+    }
+    else {
+        Write-Host ("WARNING: " + $ListenHost + ":" + $Port + " still closed after ~12s. Task Scheduler -> " + $TaskName + " -> Last Run Result; or run python input_assistant_server.py here.") -ForegroundColor Yellow
+        Write-Host "Hint: cd to this folder, run: python input_assistant_server.py" -ForegroundColor Yellow
+    }
+}
+
+if ($Host.Name -eq "ConsoleHost") {
+    $null = Read-Host "Press Enter to close"
 }

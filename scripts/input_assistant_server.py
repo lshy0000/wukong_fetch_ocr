@@ -5,8 +5,8 @@
 重要（必读）
 ------------
 - 默认只监听 **127.0.0.1**，避免局域网被远程控机。需要时可 ``--host``（自担风险）。
-- 本仓库默认同目录助手与 exe 使用**统一内置密钥**（仅本机回环）；也可用 ``INPUT_ASSISTANT_SECRET``、
-  ``--secret`` 或 ``--secret-file`` 覆盖。客户端每条命令带同名 ``secret``。
+- 本仓库默认同目录助手与 exe 使用**同一内置密钥常量**（仅本机回环）；也可用 ``--secret`` 覆盖。
+  客户端每条命令带同名 ``secret``。
 
 协议：每行一个 UTF-8 JSON，回复一行 JSON。
 
@@ -25,7 +25,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -53,12 +52,24 @@ _ensure_wukong_on_path()
 MAX_LINE = 65536
 
 
-def _dispatch(cmd: dict[str, Any]) -> dict[str, Any]:
-    from wukong_invite import input_assistant_win as low
+def _normalize_client_cmd(cmd: dict[str, Any]) -> dict[str, Any]:
+    """兼容部分脚本/工具使用 ``command``、``Secret`` 等大小写变体。"""
+    c = cmd.get("cmd")
+    if c is None or (isinstance(c, str) and not str(c).strip()):
+        alt = cmd.get("command")
+        if alt is None:
+            alt = cmd.get("Command")
+        if alt is not None:
+            return {**cmd, "cmd": alt}
+    return cmd
 
+
+def _dispatch(cmd: dict[str, Any]) -> dict[str, Any]:
     name = str(cmd.get("cmd") or "").strip().lower()
     if name == "ping":
         return {"ok": True, "pong": True}
+    from wukong_invite import input_assistant_win as low
+
     if name == "mouse_move":
         x, y = int(cmd["x"]), int(cmd["y"])
         ok = low.mouse_move(x, y)
@@ -109,8 +120,12 @@ def _dispatch(cmd: dict[str, Any]) -> dict[str, Any]:
 def _check_secret(cmd: dict[str, Any], required: str | None) -> dict[str, Any] | None:
     if not required:
         return None
-    got = str(cmd.get("secret") or "")
-    if got != required:
+    raw = cmd.get("secret")
+    if raw is None:
+        raw = cmd.get("Secret")
+    got = str(raw if raw is not None else "").strip()
+    req = str(required).strip()
+    if got != req:
         return {"ok": False, "error": "unauthorized"}
     return None
 
@@ -135,7 +150,7 @@ async def handle_client(
                 await writer.drain()
                 break
             try:
-                text = line.decode("utf-8").strip()
+                text = line.decode("utf-8").strip().lstrip("\ufeff")
                 if not text:
                     continue
                 cmd = json.loads(text)
@@ -150,6 +165,7 @@ async def handle_client(
             if not isinstance(cmd, dict):
                 out = {"ok": False, "error": "payload must be object"}
             else:
+                cmd = _normalize_client_cmd(cmd)
                 bad = _check_secret(cmd, secret)
                 out = bad if bad is not None else _dispatch(cmd)
             writer.write((json.dumps(out, ensure_ascii=False) + "\n").encode("utf-8"))
@@ -184,34 +200,28 @@ def main() -> int:
     ap.add_argument(
         "--secret",
         default="",
-        help="可选；优先级高于 --secret-file 与环境变量",
+        help="可选；明文密钥，覆盖内置常量（须与客户端一致）",
     )
     ap.add_argument(
         "--secret-file",
         default="",
-        help="从文件首行读取共享密钥（UTF-8）；用于计划任务，避免把密钥写进任务参数",
+        help=argparse.SUPPRESS,
     )
     args = ap.parse_args()
+    if str(getattr(args, "secret_file", "") or "").strip():
+        print(
+            "提示: --secret-file 已废弃（密钥改为内置常量）。请重新运行 register_input_assistant_task.ps1 更新计划任务。",
+            file=sys.stderr,
+        )
     sec = (str(args.secret or "").strip()) or None
-    if not sec and str(args.secret_file or "").strip():
-        p = Path(str(args.secret_file).strip()).expanduser()
-        if not p.is_file():
-            print("错误: --secret-file 不存在:", p, file=sys.stderr)
-            return 2
-        try:
-            sec = p.read_text(encoding="utf-8").splitlines()[0].strip() or None
-        except OSError as e:
-            print("错误: 无法读取 --secret-file:", e, file=sys.stderr)
-            return 2
-    if not sec:
-        sec = (os.environ.get("INPUT_ASSISTANT_SECRET") or "").strip() or None
     host_l = str(args.host or "").strip().lower()
-    if not sec and host_l in ("127.0.0.1", "::1", "localhost"):
-        from wukong_invite.input_assistant_flow import resolve_default_assistant_secret
+    if not sec:
+        if host_l in ("127.0.0.1", "::1", "localhost"):
+            from wukong_invite.input_assistant_flow import resolve_default_assistant_secret
 
-        sec = resolve_default_assistant_secret()
+            sec = resolve_default_assistant_secret()
     if host_l not in ("127.0.0.1", "::1", "localhost") and not sec:
-        print("错误: 非本机回环监听必须设置 --secret 或 INPUT_ASSISTANT_SECRET", file=sys.stderr)
+        print("错误: 非本机回环监听必须设置 --secret", file=sys.stderr)
         return 2
     try:
         asyncio.run(main_async(args.host, int(args.port), sec))

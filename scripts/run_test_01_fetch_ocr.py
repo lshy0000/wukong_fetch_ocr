@@ -145,7 +145,7 @@ def _print_input_assistant_instructions(host: str, port: int) -> None:
             "1) 推荐：右键「以管理员身份运行 PowerShell」，执行：\n"
             f"   cd \"{root}\"\n"
             "   .\\register_input_assistant_task.ps1\n"
-            "   （仅首次注册；会写入与程序一致的内置密钥，无需再配环境变量。）\n\n"
+            "   （仅首次注册；助手使用与主程序相同的内置密钥，无需密钥文件或环境变量。）\n\n"
             "2) 或临时调试：在同一目录打开终端，执行：\n"
             f"   cd \"{root}\"\n"
             "   python input_assistant_server.py\n\n"

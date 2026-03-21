@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import json
-import os
 import socket
 import sys
 import time
@@ -107,35 +106,9 @@ def send_input_assistant_command(
 
 
 def resolve_default_assistant_secret() -> str:
-    """
-    默认密钥：环境变量 → ``INPUT_ASSISTANT_SECRET_FILE`` →
-    %LOCALAPPDATA%\\wukong_input_assistant\\secret.txt → 与安装脚本一致的**内置默认值**。
-    """
+    """与 ``input_assistant_server`` 共用的默认密钥：内置常量 ``BUNDLED_INPUT_ASSISTANT_SECRET``。"""
     from wukong_invite.input_assistant_defaults import BUNDLED_INPUT_ASSISTANT_SECRET
 
-    sec = (os.environ.get("INPUT_ASSISTANT_SECRET") or "").strip() or None
-    if sec:
-        return sec
-    sf = (os.environ.get("INPUT_ASSISTANT_SECRET_FILE") or "").strip()
-    if sf:
-        try:
-            p = Path(sf).expanduser()
-            if p.is_file():
-                line = p.read_text(encoding="utf-8").splitlines()[0].strip()
-                if line:
-                    return line
-        except OSError:
-            pass
-    la = (os.environ.get("LOCALAPPDATA") or "").strip()
-    if la:
-        p = Path(la) / "wukong_input_assistant" / "secret.txt"
-        if p.is_file():
-            try:
-                line = p.read_text(encoding="utf-8").splitlines()[0].strip()
-                if line:
-                    return line
-            except OSError:
-                pass
     return BUNDLED_INPUT_ASSISTANT_SECRET
 
 

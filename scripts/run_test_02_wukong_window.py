@@ -14,8 +14,7 @@
   python scripts/run_test_02_wukong_window.py --process "DingTalkReal.exe"
   python scripts/run_test_02_wukong_window.py --no-process --title-re "(?i).*悟空.*" -t hello
 
-密钥与 ``input_assistant_client`` 一致：``--secret`` / ``--secret-file`` / 环境变量 /
-``%LOCALAPPDATA%\\wukong_input_assistant\\secret.txt``。
+密钥与 ``input_assistant_client`` 一致：内置常量；可选 ``--secret``。
 """
 from __future__ import annotations
 
@@ -33,26 +32,8 @@ sys.path.insert(0, str(ROOT / "src"))
 from wukong_invite.input_assistant_flow import resolve_default_assistant_secret  # noqa: E402
 
 
-def _resolve_assistant_secret(
-    *,
-    secret: str,
-    secret_file: str,
-) -> str:
+def _resolve_assistant_secret(*, secret: str) -> str:
     sec = (str(secret or "").strip()) or None
-    if not sec:
-        sf = (str(secret_file or "").strip()) or (
-            os.environ.get("INPUT_ASSISTANT_SECRET_FILE") or ""
-        ).strip()
-        if sf:
-            try:
-                p = Path(sf).expanduser()
-                if p.is_file():
-                    line = p.read_text(encoding="utf-8").splitlines()[0].strip()
-                    if line:
-                        sec = line
-            except OSError as e:
-                print("无法读取 --secret-file:", e, file=sys.stderr)
-                raise SystemExit(2) from e
     if sec:
         return sec
     return resolve_default_assistant_secret()
@@ -173,8 +154,7 @@ def main() -> int:
     ap.add_argument("--host", default="127.0.0.1", help="input_assistant_server 地址")
     ap.add_argument("--port", type=int, default=47821, help="input_assistant_server 端口")
     ap.add_argument("--timeout", type=float, default=5.0, help="单条 TCP 请求超时（秒）")
-    ap.add_argument("--secret", default="", help="明文密钥（优先）")
-    ap.add_argument("--secret-file", default="", help="密钥文件首行")
+    ap.add_argument("--secret", default="", help="明文密钥（覆盖内置常量）")
     ap.add_argument(
         "--move-delay",
         type=float,
@@ -295,7 +275,7 @@ def main() -> int:
         flush=True,
     )
 
-    sec = _resolve_assistant_secret(secret=args.secret, secret_file=args.secret_file)
+    sec = _resolve_assistant_secret(secret=args.secret)
     _, meta = build_flow_commands(args.text)
     cx, cy = meta["cx"], meta["cy"]
     vh, delta_y, y_down = meta["vh"], meta["delta_y"], meta["y_down"]
