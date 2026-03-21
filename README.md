@@ -110,7 +110,7 @@ python scripts/watch_invite_until_update.py --save-debug
 
 目标脚本：`scripts/run_test_01_fetch_ocr.py`。使用 **PyInstaller 目录版（onedir）**，输出 `dist/wukong_fetch_ocr/`，需**整文件夹** zip 分发（内含 dll、依赖，勿只拷单个 exe）。
 
-构建脚本会在输出目录额外放入：`register_input_assistant_task.ps1`、`input_assistant_server.py`、`wukong_invite/` 源码包、`README_wukong_fetch_ocr_NOVICE.txt`。新手应**只使用解压目录内的注册脚本**安装键鼠助手；主程序与助手默认使用同一内置密钥（本机回环），无需配置环境变量。
+构建脚本会在输出目录额外放入：`register_input_assistant_task.ps1`、`input_assistant_server.py`、`wukong_invite/` 源码包、`README_wukong_fetch_ocr_NOVICE.txt`。新手应**只使用解压目录内的注册脚本**安装键鼠助手；主程序与助手默认使用同一内置密钥（本机回环），无需配置环境变量。**面向新手的完整步骤**见下文「Release 包使用说明（面向新手）」一节（与分发包内 `README_wukong_fetch_ocr_NOVICE.txt` 一致）。
 
 ```powershell
 cd d:\ai\2026
@@ -124,6 +124,88 @@ pyinstaller --noconfirm packaging/run_test_01_fetch_ocr.spec
 运行：`dist\wukong_fetch_ocr\wukong_fetch_ocr.exe`（与 exe 同目录会生成 `.wukong_test_state.json` 等）。
 
 说明：包体较大（含 Paddle）；对方机器需 **64 位 Windows**，且首次 OCR 仍可能向用户目录下载/缓存模型（`%USERPROFILE%\.paddlex` 等）。若打包失败，多半是某依赖未 `collect_all` 到，可把报错贴 issue 再补 `hiddenimports`。
+
+## Release 包使用说明（面向新手）
+
+以下内容与 `packaging/README_wukong_fetch_ocr_NOVICE.txt` 及 **Release / `dist\wukong_fetch_ocr\`** 内同名 txt **保持一致**，便于在仓库中直接阅读；以你手头的解压包内 txt 为准亦可。
+
+### 整包与依赖
+
+本文件夹须**整包解压保留**（勿只复制 `wukong_fetch_ocr.exe`）。主程序依赖同目录的「键鼠助手」服务；首次使用必须先完成下方「第一步」。
+
+### 重要（键鼠自动化）
+
+**多台显示器时脚本极易点错窗口或点偏坐标，结果不可信。** 在双击运行 `wukong_fetch_ocr.exe` 之前，请 **拔掉或禁用副屏，只保留一台显示器**；运行期间也不要临时改分辨率或 DPI 缩放。
+
+### 开抢前约 5 分钟（务必照做）
+
+1. 若尚未安装或提示更新：完成 **钉钉** 下载/安装或更新，在钉钉内打开 **悟空**。
+2. **登录** 用于抢码的钉钉账号，悟空相关界面保持在可切换、可操作状态。
+3. 「第一步（注册助手）」只需做一次：若从未执行过，请提前完成，不要压到开抢前最后一分钟。
+4. 确认 **仅一台显示器**（见上文「重要」），再双击运行 `wukong_fetch_ocr.exe`；运行期间保持钉钉已打开。
+5. 开抢前 **不要** 改分辨率或 DPI 缩放，否则同样容易点偏。
+
+### 第一步（必须，首次使用做一次）
+
+1. 在本文件夹空白处按住 Shift + 右键 →「在此处打开 PowerShell 窗口」，或打开「Windows PowerShell（管理员）」。
+2. 执行（把路径换成你解压后的实际目录）：
+
+```powershell
+cd "本文件夹完整路径"
+.\register_input_assistant_task.ps1
+```
+
+3. 若弹出 UAC，请点「是」。完成后会注册为登录后自动启动的助手任务。助手与主程序使用同一**内置密钥常量**，无需密钥文件或环境变量。
+
+### 第二步（每次使用）
+
+仅一台显示器、分辨率与缩放已稳定 → 双击运行 `wukong_fetch_ocr.exe`；保持钉钉与悟空可用。
+
+### 卸载助手（计划任务）
+
+在本助手所在目录打开 PowerShell（管理员），执行：
+
+```powershell
+cd "本文件夹完整路径"
+.\register_input_assistant_task.ps1 -Unregister
+```
+
+说明：在 **Windows PowerShell 5.1** 里请写 **-Unregister**（单横线）；`--Unregister` 往往无效。卸载后登录时不会再自动启动助手；若曾手动开过 `python .\input_assistant_server.py`，仍需自行结束该进程（见下节）。
+
+### 关闭占用 47821 端口的助手进程（可选）
+
+助手默认监听 **127.0.0.1:47821**。若端口被占用、需先关掉再手动重启，可在 **PowerShell** 中：
+
+1. 查看谁在监听（最后一列为 **PID**，示例中为 22228，你机器上会是别的数字）：
+
+```powershell
+netstat -ano | findstr "47821"
+```
+
+示例输出：
+
+```
+TCP    127.0.0.1:47821        0.0.0.0:0              LISTENING       22228
+```
+
+2. 用上面看到的 PID 结束进程（把 22228 换成你的 PID）：
+
+```powershell
+Stop-Process -Id 22228 -Force
+```
+
+注意：若计划任务仍在且设为登录启动，下次登录或任务被触发时助手可能再次占用该端口；彻底不用时请先做上文「卸载助手」。
+
+### 说明与排障
+
+- `ping` 若一直 `"ok": false`：请看完整 JSON 里的 `error` 字段。
+  - `unauthorized`：客户端与服务端密钥不一致（多为**混用不同版本**的 exe/助手脚本，或仅一侧使用了 `--secret`）。请整包同版本分发。
+  - `bad json`：不是 HTTP/浏览器协议；须用 TCP 发**一行** JSON（见 `input_assistant_client.py`）。不要用浏览器访问本端口。
+- 本目录除 exe 与 `_internal` 外，还应含：`README_wukong_fetch_ocr_NOVICE.txt`、`register_input_assistant_task.ps1`、`input_assistant_server.py`、`wukong_invite\`（供计划任务启动助手时 import）。另含 `run_test_01_fetch_ocr.spec` 仅供从源码重新打包参考。
+- 临时手动启动助手（不调计划任务）：在本目录打开终端执行 `python .\input_assistant_server.py`。
+- 排查 OCR 时可加参数（可选）：`wukong_fetch_ocr.exe --save-debug` 或 `--save-debug 自定义目录`，会在每次建立基线或图片变化跑 OCR 前保存 last_raw / last_inv_full / last_inv_crop。
+- 助手只监听本机 127.0.0.1，不会对外网开放。
+- 若注册失败，请确认已安装 Python 3.10+，且命令行能运行 `py -3` 或 `python` 且已经安装注册需要的所有依赖。分发包已带 `wukong_invite` 源码，一般无需再 pip install 本仓库；若用 `input_assistant_client.py ping` 验证，需在开发机仓库里执行。
 
 ## 测试
 
