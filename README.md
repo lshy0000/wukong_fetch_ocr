@@ -1,5 +1,9 @@
 # 悟空邀请码助手（轮询 + 飞桨 OCR + 剪贴板 + 可选 UI 粘贴）
 
+> **给新手：不用懂代码也能用。** 请从 **GitHub Release** 下载 **整包 zip**（内含 `wukong_fetch_ocr.exe` 与同目录助手文件），**整包解压**后使用——**不要**只复制单个 exe。**首次**在解压目录用 PowerShell 执行 `.\register_input_assistant_task.ps1` 注册「键鼠助手」（只做一次）；之后每次双击 exe 即可。运行前请 **只保留一台显示器**（多屏极易点错），开抢前不要改分辨率或 DPI；钉钉内需已登录并打开悟空。更细的顺序说明见仓库 **`packaging/README_wukong_fetch_ocr_NOVICE.txt`**（与 Release 解压目录里同名 txt 一致），正文亦收录在下方 **「Release 包使用说明（面向新手）」** 一节。
+>
+> **给开发者：** 需要改源码、跑 `python -m wukong_invite` 或自己打包的，从下文 **「安装」** 起阅读即可。
+
 官网悟空页通过**互动中台 JSONP**返回「邀请码展示图」的 CDN 地址（`img_url`），邀请码多为 **5 个汉字**（在「当前邀请码：」后）；另有活动态特殊四字码 **「感谢支持」**（解析器单独识别）。**默认预处理**：「反色」= **仅绝对 `#FFFFFF` 改为 `#000000`**（其余像素不变，可调 `WUKONG_INVITE_WHITE_MIN`）→ **按 ROI 精准裁剪**（不放大、无 CLAHE/Otsu）。OCR **默认只跑** **反色+裁剪** 一路（更快）；需要原图兜底时：`WUKONG_INVITE_OCR_VARIANTS=raw_and_crop`。旧版放大/二值化：`legacy_chain`。
 
 ## 功能
