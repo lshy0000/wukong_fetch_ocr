@@ -4,6 +4,7 @@ import io
 import logging
 import os
 import re
+import sys
 import tempfile
 import time
 from typing import Any
@@ -151,6 +152,20 @@ def _paddle_predict_kwargs() -> dict[str, Any]:
     return kw
 
 
+def _paddle_enable_mkldnn() -> bool:
+    """
+    PaddleOCR 3.x 在 CPU 上默认 ``enable_mkldnn=True``；在 Windows 上配合 Paddle 3.3 + oneDNN + PIR，
+    文本检测 ``predictor.run()`` 可能抛出 ``NotImplementedError: ConvertPirAttribute2RuntimeAttribute ...``。
+    未设置 ``WUKONG_PADDLE_ENABLE_MKLDNN`` 时，Windows 默认关闭 MKLDNN；其他平台保持与官方默认一致。
+    """
+    raw = (os.environ.get("WUKONG_PADDLE_ENABLE_MKLDNN") or "").strip().lower()
+    if raw in ("1", "true", "yes", "on"):
+        return True
+    if raw in ("0", "false", "no", "off"):
+        return False
+    return sys.platform != "win32"
+
+
 def _make_paddle_ocr_engine() -> Any:
     """PaddleOCR 3.x 优先，失败则回退 2.x 构造参数。"""
     from paddleocr import PaddleOCR
@@ -167,6 +182,7 @@ def _make_paddle_ocr_engine() -> Any:
             use_doc_orientation_classify=False,
             use_doc_unwarping=False,
             use_textline_orientation=False,
+            enable_mkldnn=_paddle_enable_mkldnn(),
         )
     except TypeError:
         logger.info("使用 PaddleOCR 2.x 风格初始化")

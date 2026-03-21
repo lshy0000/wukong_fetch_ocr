@@ -53,6 +53,18 @@ IA_MOVE_DELAY_S = 0.1
 IA_CLICK_DELAY_S = 0.1
 LOG_LEVEL = "INFO"
 
+# 本机若点击/输入整体偏上约 80px：把绝对屏幕 Y 下移该像素数（与 WUKONG_SCREEN_Y_OFFSET 一致）。
+# 同步到其它正常机器前请改回 0；也可不设此项、只在外层环境变量里配置 WUKONG_SCREEN_Y_OFFSET。
+_LOCAL_SCREEN_Y_OFFSET = 80
+
+
+def _apply_local_screen_y_offset() -> None:
+    if not _LOCAL_SCREEN_Y_OFFSET:
+        return
+    if (os.environ.get("WUKONG_SCREEN_Y_OFFSET") or "").strip():
+        return
+    os.environ["WUKONG_SCREEN_Y_OFFSET"] = str(_LOCAL_SCREEN_Y_OFFSET)
+
 
 def _paddle_import_ok() -> bool:
     try:
@@ -223,10 +235,25 @@ def _save_invite_debug_snapshots_from_png(png: bytes, out_dir: Path) -> None:
     from PIL import Image
 
     out_dir = out_dir.expanduser().resolve()
-    pil = pil_invite_to_rgb(Image.open(io.BytesIO(png)))
-    paths = save_invite_debug_snapshots(pil, out_dir)
-    for k, fp in paths.items():
-        _LOG.info("调试图 %s → %s", k, fp)
+    try:
+        pil = pil_invite_to_rgb(Image.open(io.BytesIO(png)))
+        paths = save_invite_debug_snapshots(pil, out_dir)
+        for k, fp in paths.items():
+            _LOG.info("调试图 %s → %s", k, fp)
+    except OSError:
+        _LOG.exception("save-debug 写入失败（目录权限或磁盘？）→ %s", out_dir)
+    except Exception:
+        _LOG.exception("save-debug 处理 PNG 失败 → %s", out_dir)
+
+
+def _write_state_file(payload: dict) -> None:
+    try:
+        STATE_FILE.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+    except OSError:
+        _LOG.exception("state 文件写入失败（路径 %s）", STATE_FILE.resolve())
 
 
 def _preload_ui_automation() -> None:
@@ -244,6 +271,7 @@ def _copy_and_focus_on_change(code: str) -> None:
     """邀请码变化后：复制剪贴板 → 置前 DingTalkReal → 中心点击 → 经 input_assistant 执行 flow 键入该码。"""
     from wukong_invite.clipboard_util import set_text
     from wukong_invite.input_assistant_flow import (
+        TEXT_DELIVERY_CLIPBOARD_PASTE,
         resolve_default_assistant_secret,
         run_input_assistant_flow,
     )
@@ -274,9 +302,11 @@ def _copy_and_focus_on_change(code: str) -> None:
         pass
     time.sleep(0.12)
 
+    # 置前/点击期间剪贴板可能被其它程序改写；flow 用 Ctrl+V，故再写一次。
+    set_text(code)
     sec = resolve_default_assistant_secret()
     _LOG.info(
-        "通过 input_assistant 执行 flow（%s:%s）键入邀请码…",
+        "通过 input_assistant 执行 flow（%s:%s）Ctrl+V 粘贴剪贴板中的邀请码…",
         IA_HOST,
         IA_PORT,
     )
@@ -289,6 +319,7 @@ def _copy_and_focus_on_change(code: str) -> None:
         use_default_secret=False,
         move_delay=float(IA_MOVE_DELAY_S),
         click_delay=float(IA_CLICK_DELAY_S),
+        text_delivery=TEXT_DELIVERY_CLIPBOARD_PASTE,
     )
     _LOG.info("置前、中心点击与 input_assistant flow 已完成")
 
@@ -331,6 +362,7 @@ def _configure_paddle_startup_env() -> None:
 
 
 def main() -> int:
+    _apply_local_screen_y_offset()
     ap = argparse.ArgumentParser(description="悟空邀请码：轮询 OCR + 置前 + input_assistant flow")
     ap.add_argument(
         "--save-debug",
@@ -436,17 +468,12 @@ def main() -> int:
                         loop,
                         prev_code,
                     )
-                    STATE_FILE.write_text(
-                        json.dumps(
-                            {
-                                "last_img_url": url,
-                                "last_image_sha256": sha,
-                                "last_code": prev_code,
-                            },
-                            ensure_ascii=False,
-                            indent=2,
-                        ),
-                        encoding="utf-8",
+                    _write_state_file(
+                        {
+                            "last_img_url": url,
+                            "last_image_sha256": sha,
+                            "last_code": prev_code,
+                        }
                     )
                     _LOG.info("已写入初始基线 state: %s", STATE_FILE.resolve())
                     time.sleep(interval)
@@ -479,17 +506,12 @@ def main() -> int:
                     _LOG.error("input_assistant flow 失败（邀请码已识别但未完成键鼠）: %s", e)
                     return 3
 
-                STATE_FILE.write_text(
-                    json.dumps(
-                        {
-                            "last_img_url": url,
-                            "last_image_sha256": sha,
-                            "last_code": code_now,
-                        },
-                        ensure_ascii=False,
-                        indent=2,
-                    ),
-                    encoding="utf-8",
+                _write_state_file(
+                    {
+                        "last_img_url": url,
+                        "last_image_sha256": sha,
+                        "last_code": code_now,
+                    }
                 )
                 _LOG.info("已更新 state: %s", STATE_FILE.resolve())
                 print(code_now, flush=True)
