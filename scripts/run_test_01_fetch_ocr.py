@@ -55,7 +55,7 @@ LOG_LEVEL = "INFO"
 
 # 本机若点击/输入整体偏上约 80px：把绝对屏幕 Y 下移该像素数（与 WUKONG_SCREEN_Y_OFFSET 一致）。
 # 同步到其它正常机器前请改回 0；也可不设此项、只在外层环境变量里配置 WUKONG_SCREEN_Y_OFFSET。
-_LOCAL_SCREEN_Y_OFFSET = 80
+_LOCAL_SCREEN_Y_OFFSET = 0
 
 
 def _apply_local_screen_y_offset() -> None:
@@ -295,12 +295,12 @@ def _copy_and_focus_on_change(code: str) -> None:
         center_click_offset_y=None,
         center_click_taps=1,
     )
-    time.sleep(0.12)
+    time.sleep(0.1)
     try:
         wrap.set_focus()
     except Exception:
         pass
-    time.sleep(0.12)
+    time.sleep(0.1)
 
     # 置前/点击期间剪贴板可能被其它程序改写；flow 用 Ctrl+V，故再写一次。
     set_text(code)
